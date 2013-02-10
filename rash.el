@@ -28,6 +28,7 @@
 
 (eval-when-compile (require 'cl)
                    (require 'compile))
+(require 's)
 (require 'deferred nil t)
 
 (defgroup rash nil
@@ -38,6 +39,7 @@
 (defvar rash:session-id nil)
 
 (defcustom rash:command (list "rash")
+  "Base command to invoke RASH CLI."
   :group 'rash)
 
 (defvar rash:record-args nil)
@@ -55,10 +57,15 @@
           exit-code
           start
           stop
-          pipestatus)
+          pipestatus
+          print-session-id)
   (let ((default-directory "/"))
     (apply #'deferred:process
-           (rash:-construct-command rash:command
+           (rash:-construct-command (append rash:command
+                                            (list "record")
+                                            (when print-session-id
+                                              (list "--print-session-id")))
+                                    (list "--session-id" rash:session-id)
                                     (list "--command" command)
                                     (list "--record-type" type)
                                     (list "--cwd" cwd)
@@ -105,6 +112,15 @@
   ;; :keymap rash-mode-map
   :global t
   :group 'rash
+  (if rash-mode
+      (deferred:$
+        (rash:record :type "init" :print-session-id t)
+        (deferred:nextc it
+          (lambda (session-id)
+            (setq rash:session-id (s-trim session-id)))))
+    (when rash:session-id
+      (rash:record :type "exit")
+      (setq rash:session-id nil)))
   (rash:-add-remove-hooks
       rash-mode
     (compilation-finish-functions rash:record-compilation-finish-handler)
