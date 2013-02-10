@@ -104,6 +104,16 @@
      ,@(loop for (hook cb _ local) in hooks-and-callbacks
              collect `(remove-hook ',hook ',cb ,local))))
 
+(defun rash:exit ()
+  (when rash:session-id
+    (prog1 (rash:record :type "exit")
+      (setq rash:session-id nil))))
+
+(defun rash:exit-wait ()
+  (let ((d (rash:exit)))
+    (when d
+      (deferred:sync! d))))
+
 ;;;###autoload
 (define-minor-mode rash-mode
   "RASH mode -- command logger.
@@ -118,11 +128,10 @@
         (deferred:nextc it
           (lambda (session-id)
             (setq rash:session-id (s-trim session-id)))))
-    (when rash:session-id
-      (rash:record :type "exit")
-      (setq rash:session-id nil)))
+    (rash:exit))
   (rash:-add-remove-hooks
       rash-mode
+    (kill-emacs-hook rash:exit-wait)
     (compilation-finish-functions rash:record-compilation-finish-handler)
     (compilation-start-hook rash:record-compilation-start-handler)))
 
